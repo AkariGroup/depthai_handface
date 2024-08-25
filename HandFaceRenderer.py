@@ -1,14 +1,14 @@
 import cv2
 import numpy as np
-from mediapipe_utils import *
-from face_mesh_connections import FACEMESH_TESSELATION, FACEMESH_LIPS, FACEMESH_EYES_EYEBROWS, \
+from .mediapipe_utils import *
+from .face_mesh_connections import FACEMESH_TESSELATION, FACEMESH_LIPS, FACEMESH_EYES_EYEBROWS, \
             FACEMESH_IRISES, FACEMESH_FACE_OVAL
 from shapely.geometry import Polygon, Point
 
 import random, math
-from FPS import now
+from .FPS import now
 
-LINES_HAND = [[0,1],[1,2],[2,3],[3,4], 
+LINES_HAND = [[0,1],[1,2],[2,3],[3,4],
             [0,5],[5,6],[6,7],[7,8],
             [5,9],[9,10],[10,11],[11,12],
             [9,13],[13,14],[14,15],[15,16],
@@ -22,7 +22,7 @@ LINES_BODY = [[4,2],[2,0],[0,1],[1,3],
 
 color_list = [(255,230,0), (153,255,0), (0,255,218), (100,150,255), (255, 125,240)]
 class HandFaceRenderer:
-    def __init__(self, 
+    def __init__(self,
                 tracker,
                 output=None):
 
@@ -64,7 +64,7 @@ class HandFaceRenderer:
             self.output = None
         else:
             fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-            self.output = cv2.VideoWriter(output,fourcc,self.tracker.video_fps,(self.tracker.img_w, self.tracker.img_h)) 
+            self.output = cv2.VideoWriter(output,fourcc,self.tracker.video_fps,(self.tracker.img_w, self.tracker.img_h))
 
     def norm2abs(self, x_y):
         x = int(x_y[0] * self.tracker.frame_size - self.tracker.pad_w)
@@ -73,7 +73,7 @@ class HandFaceRenderer:
 
     def draw_hand(self, hand):
 
-        # (info_ref_x, info_ref_y): coords in the image of a reference point 
+        # (info_ref_x, info_ref_y): coords in the image of a reference point
         # relatively to which hands information (score, handedness, xyz,...) are drawn
         info_ref_x = hand.landmarks[0,0]
         info_ref_y = np.max(hand.landmarks[:,1])
@@ -91,18 +91,18 @@ class HandFaceRenderer:
                     color = (219, 152, 52)
                 cv2.polylines(self.frame, lines, False, color, int(1+thick_coef*3), cv2.LINE_AA)
                 radius = int(1+thick_coef*5)
-                
+
                 if self.hand_style == 0:
                     color = (0,255,0) if hand.handedness > 0.5 else (0,0,255)
-                else: 
+                else:
                     color = (0,128,255)
                 for x,y in hand.landmarks[:,:2]:
                     cv2.circle(self.frame, (int(x), int(y)), radius, color, -1)
             if self.tracker.use_gesture and self.show_gesture:
-                    cv2.putText(self.frame, hand.gesture, (info_ref_x-20, info_ref_y-50), 
+                    cv2.putText(self.frame, hand.gesture, (info_ref_x-20, info_ref_y-50),
                             cv2.FONT_HERSHEY_PLAIN, 3, (255,255,255), 3)
 
-                
+
         if self.show_xyz:
             x0, y0 = info_ref_x - 40, info_ref_y + 40
             cv2.rectangle(self.frame, (x0,y0), (x0+100, y0+85), (220,220,240), -1)
@@ -114,13 +114,13 @@ class HandFaceRenderer:
             cv2.rectangle(self.frame, tuple(hand.xyz_zone[0:2]), tuple(hand.xyz_zone[2:4]), (180,0,180), 2)
 
     def draw_line_set(self, frame, landmarks, line_set, color=(255,255,255), thickness=1):
-        
+
         pl = [np.array([[landmarks[i1,:2], landmarks[i2,:2]]]) for i1,i2 in line_set]
         cv2.polylines(frame, pl, False, color, thickness)
 
     def draw_face(self, face):
 
-        # (info_ref_x, info_ref_y): coords in the image of a reference point 
+        # (info_ref_x, info_ref_y): coords in the image of a reference point
         # relatively to which faces information (score, faceedness, xyz,...) are drawn
         info_ref_x = face.landmarks[0,0]
         info_ref_y = np.max(face.landmarks[:,1])
@@ -173,7 +173,7 @@ class HandFaceRenderer:
                         pass
                     self.draw_line_set(self.frame, face.landmarks, FACEMESH_LIPS, (0,128,255), 2)
                     self.draw_line_set(self.frame, face.landmarks, FACEMESH_EYES_EYEBROWS, (0,255,0), 2)
-                
+
 
             if self.show_metric_landmarks:
                 frame_metric = np.zeros((650, 650, 3), dtype=np.uint8)
@@ -310,10 +310,10 @@ class HandFaceRenderer:
         if self.show_fps:
                 self.tracker.fps.draw(self.frame, orig=(50,50), size=1, color=(240,180,100))
         cv2.imshow(self.window_title, self.frame)
-            
+
         if self.output:
             self.output.write(self.frame)
-        key = cv2.waitKey(delay) 
+        key = cv2.waitKey(delay)
 
         if key == 32:
             # Pause on space bar
@@ -331,10 +331,10 @@ class HandFaceRenderer:
             self.show_face_landmarks = not self.show_face_landmarks
         elif key == ord('5'):
             if self.tracker.xyz:
-                self.show_xyz = not self.show_xyz    
+                self.show_xyz = not self.show_xyz
         elif key == ord('6'):
             if self.tracker.xyz:
-                self.show_xyz_zone = not self.show_xyz_zone 
+                self.show_xyz_zone = not self.show_xyz_zone
         elif key == ord('g'):
             if self.tracker.use_gesture:
                 self.show_gesture = not self.show_gesture

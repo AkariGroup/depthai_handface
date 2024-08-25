@@ -2,17 +2,17 @@ import numpy as np
 from collections import namedtuple
 
 from numpy.lib.arraysetops import isin
-import mediapipe_utils as mpu
+from . import mediapipe_utils as mpu
 import depthai as dai
 import cv2
 from pathlib import Path
-from FPS import FPS, now
+from .FPS import FPS, now
 import time
 import sys
 from string import Template
 import marshal
-from HostSpatialCalc import HostSpatialCalc
-from face_geometry import ( 
+from .HostSpatialCalc import HostSpatialCalc
+from .face_geometry import (
                 PCF,
                 get_metric_landmarks,
                 procrustes_landmark_basis,
@@ -36,7 +36,7 @@ FACE_TEMPLATE_MANAGER_SCRIPT = str(SCRIPT_DIR / "face_template_manager_script.py
 
 class DepthSync:
     """
-    Store depth frames history (if 'xyz' is True) to assure that alignment of rgb frame and depth frame is 
+    Store depth frames history (if 'xyz' is True) to assure that alignment of rgb frame and depth frame is
     made on synchronized frames
     """
     def __init__(self):
@@ -66,14 +66,14 @@ class DepthSync:
                 break
         msg = self.msg_lst[msg_id]
         del self.msg_lst[:msg_id+1]
-        return msg        
+        return msg
 
 
 class HandFaceTracker:
     """
     Mediapipe Hand and Face Tracker for depthai (= Mediapipe Hand tracker + Mediapipe Facemesh)
     Arguments:
-    - input_src: frame source, 
+    - input_src: frame source,
             - "rgb" or None: OAK* internal color camera,
             - a file path of an image or a video,
             - an integer (eg 0) for a webcam id,
@@ -89,20 +89,20 @@ class HandFaceTracker:
             The width is calculated accordingly to height and depends on value of 'crop'
     - use_gesture : boolean, when True, recognize hand poses froma predefined set of poses
                     (ONE, TWO, THREE, FOUR, FIVE, OK, PEACE, FIST)
-    - single_hand_tolerance_thresh (when nb_hands=2 only) : if there is only one hand in a frame, 
-            in order to know when a second hand will appear you need to run the palm detection 
-            in the following frames. Because palm detection is slow, you may want to delay 
-            the next time you will run it. 'single_hand_tolerance_thresh' is the number of 
-            frames during only one hand is detected before palm detection is run again.  
-    - focus: None or int between 0 and 255. Color camera focus. 
-            If None, auto-focus is active. Otherwise, the focus is set to 'focus' 
+    - single_hand_tolerance_thresh (when nb_hands=2 only) : if there is only one hand in a frame,
+            in order to know when a second hand will appear you need to run the palm detection
+            in the following frames. Because palm detection is slow, you may want to delay
+            the next time you will run it. 'single_hand_tolerance_thresh' is the number of
+            frames during only one hand is detected before palm detection is run again.
+    - focus: None or int between 0 and 255. Color camera focus.
+            If None, auto-focus is active. Otherwise, the focus is set to 'focus'
     - trace : int, 0 = no trace, otherwise print some debug messages or show output of ImageManip nodes
             if trace & 1, print application level info like number of palm detections,
             if trace & 2, print lower level info like when a message is sent or received by the manager script node,
             if trace & 4, show in cv2 windows outputs of ImageManip node,
             if trace & 8, save in file tmp_code.py the python code of the manager script node
             Ex: if trace==3, both application and low level info are displayed.
-                      
+
     """
     def __init__(self, input_src=None,
                 with_attention=True,
@@ -140,15 +140,15 @@ class HandFaceTracker:
         print(f"Face landmark blob      : {self.flm_model}")
 
         self.nb_hands = nb_hands
-        
+
         self.xyz = False
-        self.crop = crop 
+        self.crop = crop
         self.use_world_landmarks = True
         if focus is None:
             self.focus = None
         else:
             self.focus = max(min(255, int(focus)), 0)
-           
+
         self.trace = trace
         self.use_gesture = use_gesture
         self.single_hand_tolerance_thresh = single_hand_tolerance_thresh
@@ -199,17 +199,17 @@ class HandFaceTracker:
 
 
             else:
-                self.internal_fps = internal_fps 
-            
-            
+                self.internal_fps = internal_fps
+
+
                 if self.input_type == "rgb" and internal_fps is None:
                     if self.with_attention:
                         self.internal_fps = 14
                     else:
                         self.internal_fps = 41
-                
 
-            print(f"Internal camera FPS set to: {self.internal_fps}") 
+
+            print(f"Internal camera FPS set to: {self.internal_fps}")
 
             self.video_fps = self.internal_fps # Used when saving the output in a video file. Should be close to the real fps
 
@@ -226,7 +226,7 @@ class HandFaceTracker:
                 self.pad_w = 0
                 self.frame_size = self.img_w
                 self.crop_w = 0
-        
+
             print(f"Internal camera image size: {self.img_w} x {self.img_h} - pad_h: {self.pad_h}")
 
         elif input_src.endswith('.jpg') or input_src.endswith('.png') :
@@ -243,7 +243,7 @@ class HandFaceTracker:
             self.img_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.img_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             print("Video FPS:", self.video_fps)
-        
+
         if self.input_type != "rgb":
             self.xyz = False
             print(f"Original frame size: {self.img_w}x{self.img_h}")
@@ -260,7 +260,7 @@ class HandFaceTracker:
             if self.pad_w: print("Padding on width :", self.pad_w)
             self.pad_h = max((self.frame_size - self.img_h) // 2, 0)
             if self.pad_h: print("Padding on height :", self.pad_h)
-                     
+
             if self.crop: self.img_h = self.img_w = self.frame_size
             print(f"Frame working size: {self.img_w}x{self.img_h}")
 
@@ -269,7 +269,7 @@ class HandFaceTracker:
         self.device.startPipeline(self.create_pipeline())
         print(f"Pipeline started - USB speed: {str(usb_speed).split('.')[-1]}")
 
-        # Define data queues 
+        # Define data queues
         if self.input_type == "rgb":
             self.q_video = self.device.getOutputQueue(name="cam_out", maxSize=2, blocking=True)
         else:
@@ -282,14 +282,14 @@ class HandFaceTracker:
         if self.trace & 4:
             if self.nb_hands > 0:
                 self.q_pre_pd_manip_out = self.device.getOutputQueue(name="pre_pd_manip_out", maxSize=1, blocking=False)
-                self.q_pre_hlm_manip_out = self.device.getOutputQueue(name="pre_hlm_manip_out", maxSize=1, blocking=False)    
+                self.q_pre_hlm_manip_out = self.device.getOutputQueue(name="pre_hlm_manip_out", maxSize=1, blocking=False)
             self.q_pre_fd_manip_out = self.device.getOutputQueue(name="pre_fd_manip_out", maxSize=1, blocking=False)
-            self.q_pre_flm_manip_out = self.device.getOutputQueue(name="pre_flm_manip_out", maxSize=1, blocking=False)    
+            self.q_pre_flm_manip_out = self.device.getOutputQueue(name="pre_flm_manip_out", maxSize=1, blocking=False)
         if self.xyz:
             self.q_depth_out = self.device.getOutputQueue(name="depth_out", maxSize=5, blocking=True)
             self.depth_sync = DepthSync()
             self.spatial_calc = HostSpatialCalc(self.device, delta=int(self.img_w/100), thresh_high=3000)
-       
+
         self.fps = FPS()
         self.seq_num = 0
 
@@ -317,7 +317,7 @@ class HandFaceTracker:
         if self.input_type == "rgb":
             # ColorCamera
             print("Creating Color Camera")
-            # _pgraph_ name 
+            # _pgraph_ name
             cam = pipeline.createColorCamera()
             if self.resolution[0] == 1920:
                 cam.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
@@ -333,7 +333,7 @@ class HandFaceTracker:
             if self.crop:
                 cam.setVideoSize(self.frame_size, self.frame_size)
                 cam.setPreviewSize(self.frame_size, self.frame_size)
-            else: 
+            else:
                 cam.setVideoSize(self.img_w, self.img_h)
                 cam.setPreviewSize(self.img_w, self.img_h)
 
@@ -348,7 +348,7 @@ class HandFaceTracker:
             host_to_face_manager_in = pipeline.createXLinkIn()
             host_to_face_manager_in.setStreamName("face_manager_in")
             host_to_face_manager_in.out.link(face_manager_script.inputs["cam_in"])
-            
+
 
         if self.input_type == "rgb":
             cam_out = pipeline.createXLinkOut()
@@ -388,7 +388,7 @@ class HandFaceTracker:
             pre_pd_manip.out.link(pd_nn.input)
             pd_nn.out.link(hand_manager_script.inputs['from_post_pd_nn'])
 
-            # Define link to send result to host 
+            # Define link to send result to host
             hand_manager_out = pipeline.create(dai.node.XLinkOut)
             hand_manager_out.setStreamName("hand_manager_out")
             hand_manager_script.outputs['host'].link(hand_manager_out.input)
@@ -396,7 +396,7 @@ class HandFaceTracker:
 
 
             # Define hand landmark pre processing image manip
-            print("Creating Hand Landmark pre processing image manip") 
+            print("Creating Hand Landmark pre processing image manip")
             self.hlm_input_length = 224
             pre_hlm_manip = pipeline.create(dai.node.ImageManip)
             pre_hlm_manip.setMaxOutputFrameSize(self.hlm_input_length*self.hlm_input_length*3)
@@ -413,7 +413,7 @@ class HandFaceTracker:
             hand_manager_script.outputs['pre_lm_manip_cfg'].link(pre_hlm_manip.inputConfig)
 
             # Define hand landmark model
-            print(f"Creating Hand Landmark Neural Network")          
+            print(f"Creating Hand Landmark Neural Network")
             hlm_nn = pipeline.create(dai.node.NeuralNetwork)
             hlm_nn.setBlobPath(self.hlm_model)
             pre_hlm_manip.out.link(hlm_nn.input)
@@ -444,13 +444,13 @@ class HandFaceTracker:
         pre_fd_manip.out.link(fd_nn.input)
         fd_nn.out.link(face_manager_script.inputs['from_post_fd_nn'])
 
-        # Define link to send result to host 
+        # Define link to send result to host
         face_manager_out = pipeline.create(dai.node.XLinkOut)
         face_manager_out.setStreamName("face_manager_out")
         face_manager_script.outputs['host'].link(face_manager_out.input)
 
         # Define face landmark pre processing image manip
-        print("Creating Face Landmark pre processing image manip") 
+        print("Creating Face Landmark pre processing image manip")
         self.flm_input_length = 192
         pre_flm_manip = pipeline.create(dai.node.ImageManip)
         pre_flm_manip.setMaxOutputFrameSize(self.flm_input_length*self.flm_input_length*3)
@@ -467,7 +467,7 @@ class HandFaceTracker:
         face_manager_script.outputs['pre_lm_manip_cfg'].link(pre_flm_manip.inputConfig)
 
         # Define face landmark model
-        print(f"Creating Face Landmark Neural Network")          
+        print(f"Creating Face Landmark Neural Network")
         flm_nn = pipeline.create(dai.node.NeuralNetwork)
         flm_nn.setBlobPath(self.flm_model)
         pre_flm_manip.out.link(flm_nn.inputs["lm_input_1"])
@@ -480,7 +480,7 @@ class HandFaceTracker:
         flm_nn.out.link(flm_nn_out.input)
 
         if self.double_face:
-            print("Creating Face Landmark pre processing image manip 2") 
+            print("Creating Face Landmark pre processing image manip 2")
             pre_flm_manip2 = pipeline.create(dai.node.ImageManip)
             pre_flm_manip2.setMaxOutputFrameSize(self.flm_input_length*self.flm_input_length*3)
             pre_flm_manip2.setWaitForConfigInput(True)
@@ -488,8 +488,8 @@ class HandFaceTracker:
 
             face_manager_script.outputs['pre_lm_manip_frame2'].link(pre_flm_manip2.inputImage)
             face_manager_script.outputs['pre_lm_manip_cfg2'].link(pre_flm_manip2.inputConfig)
-            
-            print(f"Creating Face Landmark Neural Network 2")          
+
+            print(f"Creating Face Landmark Neural Network 2")
             flm_nn2 = pipeline.create(dai.node.NeuralNetwork)
             flm_nn2.setBlobPath(self.flm_model)
             pre_flm_manip2.out.link(flm_nn2.inputs["lm_input_1"])
@@ -526,20 +526,20 @@ class HandFaceTracker:
             stereo.setLeftRightCheck(True)
             stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
             stereo.setSubpixel(False)  # subpixel True brings latency
-            # MEDIAN_OFF necessary in depthai 2.7.2. 
+            # MEDIAN_OFF necessary in depthai 2.7.2.
             # Otherwise : [critical] Fatal error. Please report to developers. Log: 'StereoSipp' '533'
             # stereo.setMedianFilter(dai.StereoDepthProperties.MedianFilter.MEDIAN_OFF)
 
             left.out.link(stereo.left)
-            right.out.link(stereo.right)    
+            right.out.link(stereo.right)
 
             depth_out = pipeline.create(dai.node.XLinkOut)
             depth_out.setStreamName("depth_out")
             stereo.depth.link(depth_out.input)
 
         print("Pipeline created.")
-        return pipeline        
-    
+        return pipeline
+
     def build_hand_manager_script(self):
         '''
         The code of the scripting node 'manager_script' depends on :
@@ -550,7 +550,7 @@ class HandFaceTracker:
         # Read the template
         with open(HAND_TEMPLATE_MANAGER_SCRIPT_SOLO if self.nb_hands == 1 else HAND_TEMPLATE_MANAGER_SCRIPT_DUO, 'r') as file:
             template = Template(file.read())
-        
+
         # Perform the substitution
         code = template.substitute(
                     _TRACE1 = "node.warn" if self.trace & 1 else "#",
@@ -587,7 +587,7 @@ class HandFaceTracker:
         # Read the template
         with open(FACE_TEMPLATE_MANAGER_SCRIPT, 'r') as file:
             template = Template(file.read())
-        
+
         # Perform the substitution
         code = template.substitute(
                     _TRACE1 = "node.warn" if self.trace & 1 else "#",
@@ -620,7 +620,7 @@ class HandFaceTracker:
         hand.rect_x_center_a = res["rect_center_x"][hand_idx] * self.frame_size
         hand.rect_y_center_a = res["rect_center_y"][hand_idx] * self.frame_size
         hand.rect_w_a = hand.rect_h_a = res["rect_size"][hand_idx] * self.frame_size
-        hand.rotation = res["rotation"][hand_idx] 
+        hand.rotation = res["rotation"][hand_idx]
         hand.rect_points = mpu.rotated_rect_to_points(hand.rect_x_center_a, hand.rect_y_center_a, hand.rect_w_a, hand.rect_h_a, hand.rotation)
         hand.lm_score = res["lm_score"][hand_idx]
         hand.handedness = res["handedness"][hand_idx]
@@ -648,7 +648,7 @@ class HandFaceTracker:
 
     def extract_face_data(self, res_lm_script, res_lm_nn):
         if self.with_attention:
-            lm_score = res_lm_nn.getLayerFp16("lm_conv_faceflag")[0] 
+            lm_score = res_lm_nn.getLayerFp16("lm_conv_faceflag")[0]
         else:
             lm_score = res_lm_nn.getLayerFp16("lm_score")[0]
         if lm_score < self.flm_score_thresh: return None
@@ -674,7 +674,7 @@ class HandFaceTracker:
             # 5 right iris landmarks
             #
             # rrn_z and sqn_z corresponds to 468 basic landmarks
-            
+
             # face.landmarks = 3D landmarks in the original image in pixels
             lm_xy = (np.array(sqn_xy).reshape(-1,2) * self.frame_size).astype(np.int)
             lm_zone = {}
@@ -752,7 +752,7 @@ class HandFaceTracker:
             # Cropping and/or padding of the video frame
             video_frame = frame[self.crop_h:self.crop_h+self.frame_size, self.crop_w:self.crop_w+self.frame_size]
             self.prev_video_frame = video_frame
-           
+
             frame = dai.ImgFrame()
             frame.setType(dai.ImgFrame.Type.BGR888p)
             h,w = video_frame.shape[:2]
@@ -765,7 +765,7 @@ class HandFaceTracker:
         self.fps.update()
         if self.input_type == "rgb":
             in_video = self.q_video.get()
-            video_frame = in_video.getCvFrame()  
+            video_frame = in_video.getCvFrame()
         else:
             if self.input_type == "image":
                 frame = self.img.copy()
@@ -775,7 +775,7 @@ class HandFaceTracker:
                     return None, None, None
             # Cropping and/or padding of the video frame
             video_frame = frame[self.crop_h:self.crop_h+self.frame_size, self.crop_w:self.crop_w+self.frame_size]
-           
+
             frame = dai.ImgFrame()
             frame.setType(dai.ImgFrame.Type.BGR888p)
             h,w = video_frame.shape[:2]
@@ -827,7 +827,7 @@ class HandFaceTracker:
             t = now()
             in_depth_msgs = self.q_depth_out.getAll()
             self.depth_sync.add(in_depth_msgs)
-            synced_depth_msg = self.depth_sync.get(in_video) 
+            synced_depth_msg = self.depth_sync.get(in_video)
             frame_depth = synced_depth_msg.getFrame()
             # !!! The 4 lines below are for disparity (not depth)
             # frame_depth = (frame_depth * 255. / self.max_disparity).astype(np.uint8)
@@ -848,4 +848,3 @@ class HandFaceTracker:
     def exit(self):
         self.device.close()
         print(f"FPS : {self.fps.get_global():.1f} f/s")
-            
